@@ -1,0 +1,20 @@
+# .gqlgen.yml example
+#
+# Refer to https://gqlgen.com/config/
+# for detailed .gqlgen.yml documentation.
+
+schema:
+- "schema/**/*.graphql"
+exec:
+  filename: generated/server.go
+  package: generated
+model:
+  filename: generated/model.go
+  package: generated
+resolver:
+  filename: resolver/resolver.go
+  type: Resolver
+autobind: []
+models:
+  User:
+    model: github.com/astrohot/backend/internal/api/model/user.User
