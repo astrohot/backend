@@ -18,3 +18,9 @@ autobind: []
 models:
   User:
     model: github.com/astrohot/backend/internal/api/model/user.User
+  NewUser:
+    model: github.com/astrohot/backend/internal/api/model/user.NewUser
+  Like:
+    model: github.com/astrohot/backend/internal/api/model/like.Like
+  NewLike:
+    model: github.com/astrohot/backend/internal/api/model/like.NewLike

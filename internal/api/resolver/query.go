@@ -2,8 +2,8 @@ package resolver
 
 import (
 	"context"
+	"log"
 
-	"github.com/astrohot/backend/internal/api/generated"
 	"github.com/astrohot/backend/internal/api/model/user"
 	"google.golang.org/api/iterator"
 )
@@ -12,51 +12,98 @@ type queryResolver struct {
 	*Resolver
 }
 
-func (r *queryResolver) Users(ctx context.Context) ([]*user.User, error) {
-	users := []*user.User{}
-	iter := r.Firestore.Client.Collection("Users").Documents(ctx)
-	document, err := iter.Next()
+func (r *queryResolver) Users(ctx context.Context) (users []*user.User, err error) {
+	coll := r.Firestore.Client.Collection("users")
+	iter := coll.Documents(ctx)
+	defer iter.Stop()
 
-	if err != nil && err != iterator.Done {
-		return nil, err
-	}
+	for {
+		snapshot, err := iter.Next()
+		if err != nil {
+			if err != iterator.Done {
+				log.Println(err)
+			}
 
-	for ; err != iterator.Done; document, err = iter.Next() {
-		data := document.Data()
+			break
+		}
+
+		data := snapshot.Data()
 		users = append(users, &user.User{
-			ID:    document.Ref.ID,
-			Name:  data["Name"].(string),
-			Email: data["Email"].(string),
+			ID:    snapshot.Ref.ID,
+			Name:  data["name"].(string),
+			Email: data["email"].(string),
+			Likes: data["likes"].([]string),
 		})
 	}
 
 	if err != nil && err != iterator.Done {
-		return nil, err
+		return
 	}
 
-	return users, nil
+	return
 }
 
-func (r *queryResolver) Matches(ctx context.Context) ([]*generated.Match, error) {
-	matches := []*generated.Match{}
-	iter := r.Firestore.Client.Collection("Matches").Documents(ctx)
-	document, err := iter.Next()
+func (r *queryResolver) Likes(ctx context.Context, mainID string) (likes []*string, err error) {
+	coll := r.Firestore.Client.Collection("likes")
+	query := coll.Where("mainID", "==", mainID)
+	iter := query.Documents(ctx)
+	defer iter.Stop()
+
+	for {
+		snapshot, err := iter.Next()
+		if err != nil {
+			if err != iterator.Done {
+				log.Println(err)
+			}
+
+			break
+		}
+
+		data := snapshot.Data()
+		crushID := data["crushID"].(string)
+		likes = append(likes, &crushID)
+	}
 
 	if err != nil && err != iterator.Done {
-		return nil, err
+		likes = nil
 	}
 
-	for ; err != iterator.Done; document, err = iter.Next() {
-		data := document.Data()
-		matches = append(matches, &generated.Match{
-			UserA: data["UserA"].(string),
-			UserB: data["UserB"].(string),
-		})
+	return
+}
+
+func (r *queryResolver) Matches(ctx context.Context, mainID string) (matches []*string, err error) {
+	coll := r.Firestore.Client.Collection("likes")
+	query := coll.Where("mainID", "==", mainID)
+	iter := query.Documents(ctx)
+	defer iter.Stop()
+
+	for {
+		snapshot, err := iter.Next()
+		if err != nil {
+			if err != iterator.Done {
+				log.Println(err)
+			}
+
+			break
+		}
+
+		data := snapshot.Data()
+		crushID := data["crushID"].(string)
+		query = coll.Where("mainID", "==", crushID).Where("crushID", "==", mainID)
+		matchesIter := query.Documents(ctx)
+
+		// That query must return exactly zero or one values. If there's one
+		// value, then it's a match ;D
+		if _, err := matchesIter.Next(); err == nil {
+			matches = append(matches, &crushID)
+		}
+
+		matchesIter.Stop()
 	}
 
 	if err != nil && err != iterator.Done {
-		return nil, err
+		matches = nil
 	}
 
-	return matches, nil
+	return
 }

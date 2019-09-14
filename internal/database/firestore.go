@@ -11,10 +11,12 @@ import (
 
 const defaultFCredentials = "firebase.json"
 
+// Firestore ...
 type Firestore struct {
 	Client *firestore.Client
 }
 
+// New ...
 func New(ctx context.Context) (*Firestore, error) {
 	fcredentials := os.Getenv("FCREDENTIALS")
 	if fcredentials == "" {
@@ -32,9 +34,5 @@ func New(ctx context.Context) (*Firestore, error) {
 		return nil, err
 	}
 
-	firestore := Firestore{
-		Client: client,
-	}
-
-	return &firestore, nil
+	return &Firestore{Client: client}, nil
 }

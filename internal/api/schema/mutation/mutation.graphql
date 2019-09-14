@@ -1,4 +1,4 @@
 type Mutation {
   createUser(input: NewUser!): User!
-  matchUsers(userA: ID!, userB: ID!): Match!
+  createLike(input: NewLike!): Like!
 }

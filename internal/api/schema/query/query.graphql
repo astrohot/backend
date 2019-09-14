@@ -1,4 +1,5 @@
 type Query {
   users: [User]!
-  matches: [Match]!
+  likes(mainID: ID!): [ID]!
+  matches(mainID: ID!): [ID]!
 }

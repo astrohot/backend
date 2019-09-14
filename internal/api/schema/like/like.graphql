@@ -1,0 +1,10 @@
+type Like {
+  id: ID!
+  mainID: ID!
+  crushID: ID!
+}
+
+input NewLike {
+  mainID: ID!
+  crushID: ID!
+}
