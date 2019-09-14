@@ -1,7 +1,16 @@
 package user
 
+// User ...
 type User struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID    string   `firestore:"-"`
+	Name  string   `firestore:"name"`
+	Email string   `firestore:"email"`
+	Likes []string `firestore:"likes"`
+}
+
+// NewUser ...
+type NewUser struct {
+	Name     string `firestore:"name"`
+	Email    string `firestore:"email"`
+	Password string `firestore:"password"`
 }

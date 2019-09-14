@@ -1,4 +1,0 @@
-type Match {
-  userA: ID!
-  userB: ID!
-}
