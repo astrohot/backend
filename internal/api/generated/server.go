@@ -12,10 +12,12 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/astrohot/backend/internal/api/model/like"
-	"github.com/astrohot/backend/internal/api/model/user"
+	"github.com/astrohot/backend/internal/api/types/third"
+	"github.com/astrohot/backend/internal/model/like"
+	"github.com/astrohot/backend/internal/model/user"
 	"github.com/vektah/gqlparser"
 	"github.com/vektah/gqlparser/ast"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // region    ************************** generated!.gotpl **************************
@@ -56,15 +58,26 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		Likes   func(childComplexity int, mainID string) int
-		Matches func(childComplexity int, mainID string) int
-		Users   func(childComplexity int) int
+		Auth          func(childComplexity int, input Auth) int
+		Likes         func(childComplexity int, mainID primitive.ObjectID) int
+		Matches       func(childComplexity int, mainID primitive.ObjectID) int
+		Users         func(childComplexity int) int
+		ValidateToken func(childComplexity int, input string) int
+	}
+
+	Token struct {
+		IsValid func(childComplexity int) int
+		Value   func(childComplexity int) int
 	}
 
 	User struct {
-		Email func(childComplexity int) int
-		ID    func(childComplexity int) int
-		Name  func(childComplexity int) int
+		Birth       func(childComplexity int) int
+		Description func(childComplexity int) int
+		Email       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Likes       func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Token       func(childComplexity int) int
 	}
 }
 
@@ -74,8 +87,10 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	Users(ctx context.Context) ([]*user.User, error)
-	Likes(ctx context.Context, mainID string) ([]*string, error)
-	Matches(ctx context.Context, mainID string) ([]*string, error)
+	Auth(ctx context.Context, input Auth) (*user.User, error)
+	ValidateToken(ctx context.Context, input string) (bool, error)
+	Likes(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error)
+	Matches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error)
 }
 
 type executableSchema struct {
@@ -138,6 +153,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateUser(childComplexity, args["input"].(user.NewUser)), true
 
+	case "Query.auth":
+		if e.complexity.Query.Auth == nil {
+			break
+		}
+
+		args, err := ec.field_Query_auth_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Auth(childComplexity, args["input"].(Auth)), true
+
 	case "Query.likes":
 		if e.complexity.Query.Likes == nil {
 			break
@@ -148,7 +175,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Likes(childComplexity, args["mainID"].(string)), true
+		return e.complexity.Query.Likes(childComplexity, args["mainID"].(primitive.ObjectID)), true
 
 	case "Query.matches":
 		if e.complexity.Query.Matches == nil {
@@ -160,7 +187,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Matches(childComplexity, args["mainID"].(string)), true
+		return e.complexity.Query.Matches(childComplexity, args["mainID"].(primitive.ObjectID)), true
 
 	case "Query.users":
 		if e.complexity.Query.Users == nil {
@@ -168,6 +195,46 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Users(childComplexity), true
+
+	case "Query.validateToken":
+		if e.complexity.Query.ValidateToken == nil {
+			break
+		}
+
+		args, err := ec.field_Query_validateToken_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.ValidateToken(childComplexity, args["input"].(string)), true
+
+	case "Token.isValid":
+		if e.complexity.Token.IsValid == nil {
+			break
+		}
+
+		return e.complexity.Token.IsValid(childComplexity), true
+
+	case "Token.value":
+		if e.complexity.Token.Value == nil {
+			break
+		}
+
+		return e.complexity.Token.Value(childComplexity), true
+
+	case "User.birth":
+		if e.complexity.User.Birth == nil {
+			break
+		}
+
+		return e.complexity.User.Birth(childComplexity), true
+
+	case "User.description":
+		if e.complexity.User.Description == nil {
+			break
+		}
+
+		return e.complexity.User.Description(childComplexity), true
 
 	case "User.email":
 		if e.complexity.User.Email == nil {
@@ -183,12 +250,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.ID(childComplexity), true
 
+	case "User.likes":
+		if e.complexity.User.Likes == nil {
+			break
+		}
+
+		return e.complexity.User.Likes(childComplexity), true
+
 	case "User.name":
 		if e.complexity.User.Name == nil {
 			break
 		}
 
 		return e.complexity.User.Name(childComplexity), true
+
+	case "User.token":
+		if e.complexity.User.Token == nil {
+			break
+		}
+
+		return e.complexity.User.Token(childComplexity), true
 
 	}
 	return 0, false
@@ -252,38 +333,58 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var parsedSchema = gqlparser.MustLoadSchema(
-	&ast.Source{Name: "schema/like/like.graphql", Input: `type Like {
-  id: ID!
-  mainID: ID!
-  crushID: ID!
+	&ast.Source{Name: "schema/like.graphql", Input: `type Like {
+  id: ObjectID!
+  mainID: ObjectID!
+  crushID: ObjectID!
 }
 
 input NewLike {
-  mainID: ID!
-  crushID: ID!
+  mainID: ObjectID!
+  crushID: ObjectID!
 }
 `},
-	&ast.Source{Name: "schema/mutation/mutation.graphql", Input: `type Mutation {
-  createUser(input: NewUser!): User!
+	&ast.Source{Name: "schema/mutation.graphql", Input: `type Mutation {
+  createUser(input: NewUser!): User
   createLike(input: NewLike!): Like!
 }
 `},
-	&ast.Source{Name: "schema/query/query.graphql", Input: `type Query {
+	&ast.Source{Name: "schema/query.graphql", Input: `type Query {
   users: [User]!
-  likes(mainID: ID!): [ID]!
-  matches(mainID: ID!): [ID]!
+  auth(input: Auth!): User!
+  validateToken(input: String!): Boolean!
+  likes(mainID: ObjectID!): [ObjectID]!
+  matches(mainID: ObjectID!): [ObjectID]!
 }
 `},
-	&ast.Source{Name: "schema/user/user.graphql", Input: `type User {
-  id: ID!
-  name: String!
+	&ast.Source{Name: "schema/types.graphql", Input: `scalar ObjectID
+`},
+	&ast.Source{Name: "schema/user.graphql", Input: `type User {
+  id: ObjectID!
+  token: Token!
   email: String!
+  name: String!
+  description: String
+  birth: String
+  likes: [String]
+}
+
+type Token {
+  value: String!
+  isValid: Boolean!
+}
+
+input Auth {
+  email: String!
+  password: String!
 }
 
 input NewUser {
   name: String!
   email: String!
   password: String!
+  description: String!
+  birth: String!
 }
 `},
 )
@@ -297,7 +398,7 @@ func (ec *executionContext) field_Mutation_createLike_args(ctx context.Context, 
 	args := map[string]interface{}{}
 	var arg0 like.NewLike
 	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewLike2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋlikeᚐNewLike(ctx, tmp)
+		arg0, err = ec.unmarshalNNewLike2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋlikeᚐNewLike(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -311,7 +412,7 @@ func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, 
 	args := map[string]interface{}{}
 	var arg0 user.NewUser
 	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐNewUser(ctx, tmp)
+		arg0, err = ec.unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐNewUser(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -334,12 +435,26 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_auth_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 Auth
+	if tmp, ok := rawArgs["input"]; ok {
+		arg0, err = ec.unmarshalNAuth2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋgeneratedᚐAuth(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_likes_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 string
+	var arg0 primitive.ObjectID
 	if tmp, ok := rawArgs["mainID"]; ok {
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		arg0, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -351,14 +466,28 @@ func (ec *executionContext) field_Query_likes_args(ctx context.Context, rawArgs 
 func (ec *executionContext) field_Query_matches_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 string
+	var arg0 primitive.ObjectID
 	if tmp, ok := rawArgs["mainID"]; ok {
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		arg0, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
 	args["mainID"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_validateToken_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["input"]; ok {
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -429,10 +558,10 @@ func (ec *executionContext) _Like_id(ctx context.Context, field graphql.Collecte
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(primitive.ObjectID)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Like_mainID(ctx context.Context, field graphql.CollectedField, obj *like.Like) (ret graphql.Marshaler) {
@@ -466,10 +595,10 @@ func (ec *executionContext) _Like_mainID(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(primitive.ObjectID)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Like_crushID(ctx context.Context, field graphql.CollectedField, obj *like.Like) (ret graphql.Marshaler) {
@@ -503,10 +632,10 @@ func (ec *executionContext) _Like_crushID(ctx context.Context, field graphql.Col
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(primitive.ObjectID)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -542,15 +671,12 @@ func (ec *executionContext) _Mutation_createUser(ctx context.Context, field grap
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !ec.HasError(rctx) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
 	res := resTmp.(*user.User)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
+	return ec.marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createLike(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -594,7 +720,7 @@ func (ec *executionContext) _Mutation_createLike(ctx context.Context, field grap
 	res := resTmp.(*like.Like)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNLike2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋlikeᚐLike(ctx, field.Selections, res)
+	return ec.marshalNLike2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋlikeᚐLike(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -631,7 +757,95 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	res := resTmp.([]*user.User)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_auth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_auth_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	rctx.Args = args
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Auth(rctx, args["input"].(Auth))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*user.User)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_validateToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_validateToken_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	rctx.Args = args
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().ValidateToken(rctx, args["input"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_likes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -660,7 +874,7 @@ func (ec *executionContext) _Query_likes(ctx context.Context, field graphql.Coll
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Likes(rctx, args["mainID"].(string))
+		return ec.resolvers.Query().Likes(rctx, args["mainID"].(primitive.ObjectID))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -672,10 +886,10 @@ func (ec *executionContext) _Query_likes(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*string)
+	res := resTmp.([]*primitive.ObjectID)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNID2ᚕᚖstring(ctx, field.Selections, res)
+	return ec.marshalNObjectID2ᚕᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_matches(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -704,7 +918,7 @@ func (ec *executionContext) _Query_matches(ctx context.Context, field graphql.Co
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Matches(rctx, args["mainID"].(string))
+		return ec.resolvers.Query().Matches(rctx, args["mainID"].(primitive.ObjectID))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -716,10 +930,10 @@ func (ec *executionContext) _Query_matches(ctx context.Context, field graphql.Co
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*string)
+	res := resTmp.([]*primitive.ObjectID)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNID2ᚕᚖstring(ctx, field.Selections, res)
+	return ec.marshalNObjectID2ᚕᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -797,6 +1011,80 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Token_value(ctx context.Context, field graphql.CollectedField, obj *user.Token) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Token",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Value, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Token_isValid(ctx context.Context, field graphql.CollectedField, obj *user.Token) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Token",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsValid, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
@@ -828,10 +1116,84 @@ func (ec *executionContext) _User_id(ctx context.Context, field graphql.Collecte
 		}
 		return graphql.Null
 	}
+	res := resTmp.(primitive.ObjectID)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_token(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Token, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(user.Token)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNToken2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐToken(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Email, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
 	res := resTmp.(string)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_name(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
@@ -871,7 +1233,7 @@ func (ec *executionContext) _User_name(ctx context.Context, field graphql.Collec
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_description(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -890,22 +1252,87 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Email, nil
+		return obj.Description, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !ec.HasError(rctx) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
 	res := resTmp.(string)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_birth(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Birth, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_likes(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Likes, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalOString2ᚕstring(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -2059,6 +2486,30 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputAuth(ctx context.Context, obj interface{}) (Auth, error) {
+	var it Auth
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "email":
+			var err error
+			it.Email, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "password":
+			var err error
+			it.Password, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputNewLike(ctx context.Context, obj interface{}) (like.NewLike, error) {
 	var it like.NewLike
 	var asMap = obj.(map[string]interface{})
@@ -2067,13 +2518,13 @@ func (ec *executionContext) unmarshalInputNewLike(ctx context.Context, obj inter
 		switch k {
 		case "mainID":
 			var err error
-			it.MainID, err = ec.unmarshalNID2string(ctx, v)
+			it.MainID, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
 			if err != nil {
 				return it, err
 			}
 		case "crushID":
 			var err error
-			it.CrushID, err = ec.unmarshalNID2string(ctx, v)
+			it.CrushID, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -2104,6 +2555,18 @@ func (ec *executionContext) unmarshalInputNewUser(ctx context.Context, obj inter
 		case "password":
 			var err error
 			it.Password, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "description":
+			var err error
+			it.Description, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "birth":
+			var err error
+			it.Birth, err = ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -2175,9 +2638,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = graphql.MarshalString("Mutation")
 		case "createUser":
 			out.Values[i] = ec._Mutation_createUser(ctx, field)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
 		case "createLike":
 			out.Values[i] = ec._Mutation_createLike(ctx, field)
 			if out.Values[i] == graphql.Null {
@@ -2218,6 +2678,34 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_users(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "auth":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_auth(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "validateToken":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_validateToken(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -2266,6 +2754,38 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var tokenImplementors = []string{"Token"}
+
+func (ec *executionContext) _Token(ctx context.Context, sel ast.SelectionSet, obj *user.Token) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.RequestContext, sel, tokenImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Token")
+		case "value":
+			out.Values[i] = ec._Token_value(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "isValid":
+			out.Values[i] = ec._Token_isValid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *user.User) graphql.Marshaler {
@@ -2282,8 +2802,8 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "name":
-			out.Values[i] = ec._User_name(ctx, field, obj)
+		case "token":
+			out.Values[i] = ec._User_token(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -2292,6 +2812,17 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "name":
+			out.Values[i] = ec._User_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "description":
+			out.Values[i] = ec._User_description(ctx, field, obj)
+		case "birth":
+			out.Values[i] = ec._User_birth(ctx, field, obj)
+		case "likes":
+			out.Values[i] = ec._User_likes(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2548,6 +3079,10 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNAuth2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋgeneratedᚐAuth(ctx context.Context, v interface{}) (Auth, error) {
+	return ec.unmarshalInputAuth(ctx, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	return graphql.UnmarshalBoolean(v)
 }
@@ -2562,54 +3097,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
-	return graphql.UnmarshalID(v)
-}
-
-func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
-	res := graphql.MarshalID(v)
-	if res == graphql.Null {
-		if !ec.HasError(graphql.GetResolverContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
-		}
-	}
-	return res
-}
-
-func (ec *executionContext) unmarshalNID2ᚕᚖstring(ctx context.Context, v interface{}) ([]*string, error) {
-	var vSlice []interface{}
-	if v != nil {
-		if tmp1, ok := v.([]interface{}); ok {
-			vSlice = tmp1
-		} else {
-			vSlice = []interface{}{v}
-		}
-	}
-	var err error
-	res := make([]*string, len(vSlice))
-	for i := range vSlice {
-		res[i], err = ec.unmarshalOID2ᚖstring(ctx, vSlice[i])
-		if err != nil {
-			return nil, err
-		}
-	}
-	return res, nil
-}
-
-func (ec *executionContext) marshalNID2ᚕᚖstring(ctx context.Context, sel ast.SelectionSet, v []*string) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	for i := range v {
-		ret[i] = ec.marshalOID2ᚖstring(ctx, sel, v[i])
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNLike2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋlikeᚐLike(ctx context.Context, sel ast.SelectionSet, v like.Like) graphql.Marshaler {
+func (ec *executionContext) marshalNLike2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋlikeᚐLike(ctx context.Context, sel ast.SelectionSet, v like.Like) graphql.Marshaler {
 	return ec._Like(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNLike2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋlikeᚐLike(ctx context.Context, sel ast.SelectionSet, v *like.Like) graphql.Marshaler {
+func (ec *executionContext) marshalNLike2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋlikeᚐLike(ctx context.Context, sel ast.SelectionSet, v *like.Like) graphql.Marshaler {
 	if v == nil {
 		if !ec.HasError(graphql.GetResolverContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -2619,12 +3111,55 @@ func (ec *executionContext) marshalNLike2ᚖgithubᚗcomᚋastrohotᚋbackendᚋ
 	return ec._Like(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNNewLike2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋlikeᚐNewLike(ctx context.Context, v interface{}) (like.NewLike, error) {
+func (ec *executionContext) unmarshalNNewLike2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋlikeᚐNewLike(ctx context.Context, v interface{}) (like.NewLike, error) {
 	return ec.unmarshalInputNewLike(ctx, v)
 }
 
-func (ec *executionContext) unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐNewUser(ctx context.Context, v interface{}) (user.NewUser, error) {
+func (ec *executionContext) unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐNewUser(ctx context.Context, v interface{}) (user.NewUser, error) {
 	return ec.unmarshalInputNewUser(ctx, v)
+}
+
+func (ec *executionContext) unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, v interface{}) (primitive.ObjectID, error) {
+	return third.UnmarshalObjectID(v)
+}
+
+func (ec *executionContext) marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, sel ast.SelectionSet, v primitive.ObjectID) graphql.Marshaler {
+	res := third.MarshalObjectID(v)
+	if res == graphql.Null {
+		if !ec.HasError(graphql.GetResolverContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNObjectID2ᚕᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, v interface{}) ([]*primitive.ObjectID, error) {
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]*primitive.ObjectID, len(vSlice))
+	for i := range vSlice {
+		res[i], err = ec.unmarshalOObjectID2ᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNObjectID2ᚕᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, sel ast.SelectionSet, v []*primitive.ObjectID) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalOObjectID2ᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, sel, v[i])
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -2641,11 +3176,15 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) marshalNUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
+func (ec *executionContext) marshalNToken2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐToken(ctx context.Context, sel ast.SelectionSet, v user.Token) graphql.Marshaler {
+	return ec._Token(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v []*user.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v []*user.User) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -2669,7 +3208,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackend
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx, sel, v[i])
+			ret[i] = ec.marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -2682,7 +3221,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackend
 	return ret
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
 	if v == nil {
 		if !ec.HasError(graphql.GetResolverContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -2941,27 +3480,27 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return ec.marshalOBoolean2bool(ctx, sel, *v)
 }
 
-func (ec *executionContext) unmarshalOID2string(ctx context.Context, v interface{}) (string, error) {
-	return graphql.UnmarshalID(v)
+func (ec *executionContext) unmarshalOObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, v interface{}) (primitive.ObjectID, error) {
+	return third.UnmarshalObjectID(v)
 }
 
-func (ec *executionContext) marshalOID2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
-	return graphql.MarshalID(v)
+func (ec *executionContext) marshalOObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, sel ast.SelectionSet, v primitive.ObjectID) graphql.Marshaler {
+	return third.MarshalObjectID(v)
 }
 
-func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
+func (ec *executionContext) unmarshalOObjectID2ᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, v interface{}) (*primitive.ObjectID, error) {
 	if v == nil {
 		return nil, nil
 	}
-	res, err := ec.unmarshalOID2string(ctx, v)
+	res, err := ec.unmarshalOObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
 	return &res, err
 }
 
-func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+func (ec *executionContext) marshalOObjectID2ᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, sel ast.SelectionSet, v *primitive.ObjectID) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return ec.marshalOID2string(ctx, sel, *v)
+	return ec.marshalOObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, sel, *v)
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
@@ -2970,6 +3509,38 @@ func (ec *executionContext) unmarshalOString2string(ctx context.Context, v inter
 
 func (ec *executionContext) marshalOString2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
 	return graphql.MarshalString(v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstring(ctx context.Context, v interface{}) ([]string, error) {
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		res[i], err = ec.unmarshalOString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstring(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalOString2string(ctx, sel, v[i])
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
@@ -2987,11 +3558,11 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return ec.marshalOString2string(ctx, sel, *v)
 }
 
-func (ec *executionContext) marshalOUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋapiᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

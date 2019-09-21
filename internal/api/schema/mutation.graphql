@@ -1,4 +1,4 @@
 type Mutation {
-  createUser(input: NewUser!): User!
+  createUser(input: NewUser!): User
   createLike(input: NewLike!): Like!
 }

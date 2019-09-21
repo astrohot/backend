@@ -4,7 +4,7 @@
 # for detailed .gqlgen.yml documentation.
 
 schema:
-- "schema/**/*.graphql"
+- "schema/*.graphql"
 exec:
   filename: generated/server.go
   package: generated
@@ -16,11 +16,15 @@ resolver:
   type: Resolver
 autobind: []
 models:
-  User:
-    model: github.com/astrohot/backend/internal/api/model/user.User
   NewUser:
-    model: github.com/astrohot/backend/internal/api/model/user.NewUser
+    model: github.com/astrohot/backend/internal/model/user.NewUser
+  User:
+    model: github.com/astrohot/backend/internal/model/user.User
+  Token:
+    model: github.com/astrohot/backend/internal/model/user.Token
   Like:
-    model: github.com/astrohot/backend/internal/api/model/like.Like
+    model: github.com/astrohot/backend/internal/model/like.Like
   NewLike:
-    model: github.com/astrohot/backend/internal/api/model/like.NewLike
+    model: github.com/astrohot/backend/internal/model/like.NewLike
+  ObjectID:
+    model: github.com/astrohot/backend/internal/api/types/third.ObjectID

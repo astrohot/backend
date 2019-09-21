@@ -1,0 +1,27 @@
+type User {
+  id: ObjectID!
+  token: Token!
+  email: String!
+  name: String!
+  description: String
+  birth: String
+  likes: [String]
+}
+
+type Token {
+  value: String!
+  isValid: Boolean!
+}
+
+input Auth {
+  email: String!
+  password: String!
+}
+
+input NewUser {
+  name: String!
+  email: String!
+  password: String!
+  description: String!
+  birth: String!
+}

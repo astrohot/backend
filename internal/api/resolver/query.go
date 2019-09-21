@@ -4,106 +4,96 @@ import (
 	"context"
 	"log"
 
-	"github.com/astrohot/backend/internal/api/model/user"
-	"google.golang.org/api/iterator"
+	"github.com/astrohot/backend/internal/api/generated"
+	"github.com/astrohot/backend/internal/auth"
+	"github.com/astrohot/backend/internal/model/like"
+	"github.com/astrohot/backend/internal/model/user"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type queryResolver struct {
 	*Resolver
 }
 
-func (r *queryResolver) Users(ctx context.Context) (users []*user.User, err error) {
-	coll := r.Firestore.Client.Collection("users")
-	iter := coll.Documents(ctx)
-	defer iter.Stop()
+func (r *queryResolver) ValidateToken(ctx context.Context, token string) (bool, error) {
+	_, err := auth.Parse(token)
+	switch err {
+	case nil:
+		return true, nil
+	case auth.ErrInvalidToken:
+		return false, nil
+	default:
+		return false, err
+	}
+}
 
-	for {
-		snapshot, err := iter.Next()
-		if err != nil {
-			if err != iterator.Done {
-				log.Println(err)
-			}
+func (r *queryResolver) Auth(ctx context.Context, input generated.Auth) (*user.User, error) {
+	// Check if user is already authenticated and thus it is inside the
+	// context.
+	u, ok := auth.FromContext(ctx).(user.User)
 
-			break
+	// If not, then try to retrieve user from database
+	if !ok || u.Token.Value == "" {
+		u, err := r.DB.GetUserByEmail(ctx, input.Email)
+		if err == mongo.ErrNoDocuments {
+			return nil, ErrUserNotFound
 		}
 
-		data := snapshot.Data()
-		users = append(users, &user.User{
-			ID:    snapshot.Ref.ID,
-			Name:  data["name"].(string),
-			Email: data["email"].(string),
-			Likes: data["likes"].([]string),
-		})
+		// Try to authenticate user.
+		var tok string
+		tok, err = u.Authenticate(input.Password)
+		if err != nil {
+			return nil, err
+		}
+
+		u.Token = user.Token{
+			Value:   tok,
+			IsValid: true,
+		}
 	}
 
-	if err != nil && err != iterator.Done {
-		return
-	}
+	return &u, nil
+}
 
+func (r *queryResolver) Users(ctx context.Context) (us []*user.User, err error) {
 	return
 }
 
-func (r *queryResolver) Likes(ctx context.Context, mainID string) (likes []*string, err error) {
-	coll := r.Firestore.Client.Collection("likes")
-	query := coll.Where("mainID", "==", mainID)
-	iter := query.Documents(ctx)
-	defer iter.Stop()
+func (r *queryResolver) Likes(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
+	// Check if user is authenticated. If it's not, return with error.
+	u, ok := auth.FromContext(ctx).(user.User)
+	if !ok {
+		return nil, ErrNotLogged
+	}
 
-	for {
-		snapshot, err := iter.Next()
-		if err != nil {
-			if err != iterator.Done {
-				log.Println(err)
-			}
+	// Get likes associated with that user.
+	coll := r.DB.Collection("likes")
+	where := bson.M{"mainID": u.ID}
 
+	cursor, err := coll.Find(ctx, where)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+
+	var ls []*primitive.ObjectID
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var l like.Like
+		if err = cursor.Decode(&l); err != nil {
+			log.Println(err)
+			ls = nil
 			break
 		}
 
-		data := snapshot.Data()
-		crushID := data["crushID"].(string)
-		likes = append(likes, &crushID)
+		ls = append(ls, &l.CrushID)
 	}
 
-	if err != nil && err != iterator.Done {
-		likes = nil
-	}
-
-	return
+	return ls, err
 }
 
-func (r *queryResolver) Matches(ctx context.Context, mainID string) (matches []*string, err error) {
-	coll := r.Firestore.Client.Collection("likes")
-	query := coll.Where("mainID", "==", mainID)
-	iter := query.Documents(ctx)
-	defer iter.Stop()
-
-	for {
-		snapshot, err := iter.Next()
-		if err != nil {
-			if err != iterator.Done {
-				log.Println(err)
-			}
-
-			break
-		}
-
-		data := snapshot.Data()
-		crushID := data["crushID"].(string)
-		query = coll.Where("mainID", "==", crushID).Where("crushID", "==", mainID)
-		matchesIter := query.Documents(ctx)
-
-		// That query must return exactly zero or one values. If there's one
-		// value, then it's a match ;D
-		if _, err := matchesIter.Next(); err == nil {
-			matches = append(matches, &crushID)
-		}
-
-		matchesIter.Stop()
-	}
-
-	if err != nil && err != iterator.Done {
-		matches = nil
-	}
-
-	return
+func (r *queryResolver) Matches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
+	return nil, nil
 }

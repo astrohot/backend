@@ -9,7 +9,7 @@ import (
 
 // Resolver ...
 type Resolver struct {
-	Firestore *database.Firestore
+	DB *database.DB
 }
 
 // Mutation ...
