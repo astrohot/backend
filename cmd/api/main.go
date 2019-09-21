@@ -10,6 +10,8 @@ import (
 	"github.com/astrohot/backend/internal/api/generated"
 	"github.com/astrohot/backend/internal/api/resolver"
 	"github.com/astrohot/backend/internal/database"
+	"github.com/go-chi/chi"
+	"github.com/rs/cors"
 )
 
 const defaultPort = "8080"
@@ -27,8 +29,12 @@ func main() {
 
 	defer firestore.Client.Close()
 
-	http.Handle("/", handler.Playground("GraphQL playground", "/graphql"))
-	http.Handle("/graphql", handler.GraphQL(
+	router := chi.NewRouter()
+
+	// Add CORS middleware around every request.
+	router.Use(cors.Default().Handler)
+	router.Handle("/", handler.Playground("GraphQL playground", "/graphql"))
+	router.Handle("/graphql", handler.GraphQL(
 		generated.NewExecutableSchema(
 			generated.Config{
 				Resolvers: &resolver.Resolver{
@@ -38,5 +44,5 @@ func main() {
 		)))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+port, router))
 }
