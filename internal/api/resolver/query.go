@@ -30,13 +30,18 @@ func (r *queryResolver) ValidateToken(ctx context.Context, token string) (bool, 
 }
 
 func (r *queryResolver) Auth(ctx context.Context, input generated.Auth) (*user.User, error) {
+	var (
+		u   user.User
+		err error
+	)
+
 	// Check if user is already authenticated and thus it is inside the
 	// context.
 	u, ok := auth.FromContext(ctx).(user.User)
 
 	// If not, then try to retrieve user from database
 	if !ok || u.Token.Value == "" {
-		u, err := r.DB.GetUserByEmail(ctx, input.Email)
+		u, err = r.DB.GetUserByEmail(ctx, input.Email)
 		if err == mongo.ErrNoDocuments {
 			return nil, ErrUserNotFound
 		}
