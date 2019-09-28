@@ -57,8 +57,8 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateDislike func(childComplexity int, input action.NewAction) int
-		CreateLike    func(childComplexity int, input action.NewAction) int
+		CreateDislike func(childComplexity int, crushID primitive.ObjectID) int
+		CreateLike    func(childComplexity int, crushID primitive.ObjectID) int
 		CreateUser    func(childComplexity int, input user.NewUser) int
 	}
 
@@ -89,8 +89,8 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	CreateUser(ctx context.Context, input user.NewUser) (*user.User, error)
-	CreateLike(ctx context.Context, input action.NewAction) (*action.Action, error)
-	CreateDislike(ctx context.Context, input action.NewAction) (*action.Action, error)
+	CreateLike(ctx context.Context, crushID primitive.ObjectID) (*action.Action, error)
+	CreateDislike(ctx context.Context, crushID primitive.ObjectID) (*action.Action, error)
 }
 type QueryResolver interface {
 	GetUsers(ctx context.Context, offset int, limit int) ([]*user.User, error)
@@ -163,7 +163,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateDislike(childComplexity, args["input"].(action.NewAction)), true
+		return e.complexity.Mutation.CreateDislike(childComplexity, args["crushID"].(primitive.ObjectID)), true
 
 	case "Mutation.createLike":
 		if e.complexity.Mutation.CreateLike == nil {
@@ -175,7 +175,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateLike(childComplexity, args["input"].(action.NewAction)), true
+		return e.complexity.Mutation.CreateLike(childComplexity, args["crushID"].(primitive.ObjectID)), true
 
 	case "Mutation.createUser":
 		if e.complexity.Mutation.CreateUser == nil {
@@ -388,16 +388,11 @@ var parsedSchema = gqlparser.MustLoadSchema(
   type: String!
   createdAt: Time!
 }
-
-input NewAction {
-  mainID: ObjectID!
-  crushID: ObjectID!
-}
 `},
 	&ast.Source{Name: "schema/mutation.graphql", Input: `type Mutation {
   createUser(input: NewUser!): User
-  createLike(input: NewAction!): Action
-  createDislike(input: NewAction!): Action
+  createLike(crushID: ObjectID!): Action
+  createDislike(crushID: ObjectID!): Action
 }
 `},
 	&ast.Source{Name: "schema/query.graphql", Input: `type Query {
@@ -448,28 +443,28 @@ input NewUser {
 func (ec *executionContext) field_Mutation_createDislike_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 action.NewAction
-	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐNewAction(ctx, tmp)
+	var arg0 primitive.ObjectID
+	if tmp, ok := rawArgs["crushID"]; ok {
+		arg0, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["input"] = arg0
+	args["crushID"] = arg0
 	return args, nil
 }
 
 func (ec *executionContext) field_Mutation_createLike_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 action.NewAction
-	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐNewAction(ctx, tmp)
+	var arg0 primitive.ObjectID
+	if tmp, ok := rawArgs["crushID"]; ok {
+		arg0, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["input"] = arg0
+	args["crushID"] = arg0
 	return args, nil
 }
 
@@ -867,7 +862,7 @@ func (ec *executionContext) _Mutation_createLike(ctx context.Context, field grap
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateLike(rctx, args["input"].(action.NewAction))
+		return ec.resolvers.Mutation().CreateLike(rctx, args["crushID"].(primitive.ObjectID))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -908,7 +903,7 @@ func (ec *executionContext) _Mutation_createDislike(ctx context.Context, field g
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateDislike(rctx, args["input"].(action.NewAction))
+		return ec.resolvers.Mutation().CreateDislike(rctx, args["crushID"].(primitive.ObjectID))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2760,30 +2755,6 @@ func (ec *executionContext) unmarshalInputAuth(ctx context.Context, obj interfac
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputNewAction(ctx context.Context, obj interface{}) (action.NewAction, error) {
-	var it action.NewAction
-	var asMap = obj.(map[string]interface{})
-
-	for k, v := range asMap {
-		switch k {
-		case "mainID":
-			var err error
-			it.MainID, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "crushID":
-			var err error
-			it.CrushID, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputNewUser(ctx context.Context, obj interface{}) (user.NewUser, error) {
 	var it user.NewUser
 	var asMap = obj.(map[string]interface{})
@@ -3382,10 +3353,6 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐNewAction(ctx context.Context, v interface{}) (action.NewAction, error) {
-	return ec.unmarshalInputNewAction(ctx, v)
 }
 
 func (ec *executionContext) unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐNewUser(ctx context.Context, v interface{}) (user.NewUser, error) {

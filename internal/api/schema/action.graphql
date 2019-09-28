@@ -5,8 +5,3 @@ type Action {
   type: String!
   createdAt: Time!
 }
-
-input NewAction {
-  mainID: ObjectID!
-  crushID: ObjectID!
-}

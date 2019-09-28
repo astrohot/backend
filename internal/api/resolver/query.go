@@ -108,6 +108,12 @@ func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*use
 }
 
 func (r *queryResolver) GetMatches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
+	// Check if user is authenticated.
+	_, ok := auth.FromContext(ctx).(user.User)
+	if !ok {
+		return nil, ErrNotLogged
+	}
+
 	return nil, nil
 }
 

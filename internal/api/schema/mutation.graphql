@@ -1,5 +1,5 @@
 type Mutation {
   createUser(input: NewUser!): User
-  createLike(input: NewAction!): Action
-  createDislike(input: NewAction!): Action
+  createLike(crushID: ObjectID!): Action
+  createDislike(crushID: ObjectID!): Action
 }
