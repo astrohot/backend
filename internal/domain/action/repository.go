@@ -2,6 +2,7 @@ package action
 
 import (
 	"context"
+	"time"
 
 	"github.com/astrohot/backend/internal/lib/database"
 )
@@ -14,6 +15,7 @@ func (a Action) Insert(ctx context.Context) (Action, error) {
 	}
 
 	a.ID = insertedID
+	a.CreatedAt = time.Now().UTC()
 	return a, nil
 }
 

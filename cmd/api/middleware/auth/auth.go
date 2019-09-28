@@ -3,8 +3,8 @@ package auth
 import (
 	"net/http"
 
+	"github.com/astrohot/backend/internal/domain/user"
 	"github.com/astrohot/backend/internal/lib/auth"
-	"github.com/astrohot/backend/internal/model/user"
 )
 
 const authHeader = "Authorization"

@@ -9,12 +9,13 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/astrohot/backend/internal/api/types/third"
-	"github.com/astrohot/backend/internal/model/action"
-	"github.com/astrohot/backend/internal/model/user"
+	"github.com/astrohot/backend/internal/domain/action"
+	"github.com/astrohot/backend/internal/domain/user"
 	"github.com/vektah/gqlparser"
 	"github.com/vektah/gqlparser/ast"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -40,6 +41,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	User() UserResolver
 }
 
 type DirectiveRoot struct {
@@ -47,10 +49,11 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Action struct {
-		CrushID func(childComplexity int) int
-		ID      func(childComplexity int) int
-		MainID  func(childComplexity int) int
-		Type    func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		CrushID   func(childComplexity int) int
+		ID        func(childComplexity int) int
+		MainID    func(childComplexity int) int
+		Type      func(childComplexity int) int
 	}
 
 	Mutation struct {
@@ -61,8 +64,8 @@ type ComplexityRoot struct {
 
 	Query struct {
 		Auth          func(childComplexity int, input Auth) int
-		Matches       func(childComplexity int, mainID primitive.ObjectID) int
-		Users         func(childComplexity int, offset int, limit int) int
+		GetMatches    func(childComplexity int, mainID primitive.ObjectID) int
+		GetUsers      func(childComplexity int, offset int, limit int) int
 		ValidateToken func(childComplexity int, input string) int
 	}
 
@@ -72,13 +75,14 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		Birth       func(childComplexity int) int
-		Description func(childComplexity int) int
-		Email       func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Likes       func(childComplexity int) int
-		Name        func(childComplexity int) int
-		Token       func(childComplexity int) int
+		Birth     func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		Email     func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Likes     func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Sign      func(childComplexity int) int
+		Token     func(childComplexity int) int
 	}
 }
 
@@ -88,10 +92,13 @@ type MutationResolver interface {
 	CreateDislike(ctx context.Context, input action.NewAction) (*action.Action, error)
 }
 type QueryResolver interface {
-	Users(ctx context.Context, offset int, limit int) ([]*user.User, error)
-	Matches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error)
+	GetUsers(ctx context.Context, offset int, limit int) ([]*user.User, error)
+	GetMatches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error)
 	Auth(ctx context.Context, input Auth) (*user.User, error)
 	ValidateToken(ctx context.Context, input string) (bool, error)
+}
+type UserResolver interface {
+	Sign(ctx context.Context, obj *user.User) (string, error)
 }
 
 type executableSchema struct {
@@ -108,6 +115,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "Action.createdAt":
+		if e.complexity.Action.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Action.CreatedAt(childComplexity), true
 
 	case "Action.crushID":
 		if e.complexity.Action.CrushID == nil {
@@ -185,29 +199,29 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Auth(childComplexity, args["input"].(Auth)), true
 
-	case "Query.matches":
-		if e.complexity.Query.Matches == nil {
+	case "Query.getMatches":
+		if e.complexity.Query.GetMatches == nil {
 			break
 		}
 
-		args, err := ec.field_Query_matches_args(context.TODO(), rawArgs)
+		args, err := ec.field_Query_getMatches_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Query.Matches(childComplexity, args["mainID"].(primitive.ObjectID)), true
+		return e.complexity.Query.GetMatches(childComplexity, args["mainID"].(primitive.ObjectID)), true
 
-	case "Query.users":
-		if e.complexity.Query.Users == nil {
+	case "Query.getUsers":
+		if e.complexity.Query.GetUsers == nil {
 			break
 		}
 
-		args, err := ec.field_Query_users_args(context.TODO(), rawArgs)
+		args, err := ec.field_Query_getUsers_args(context.TODO(), rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.complexity.Query.Users(childComplexity, args["offset"].(int), args["limit"].(int)), true
+		return e.complexity.Query.GetUsers(childComplexity, args["offset"].(int), args["limit"].(int)), true
 
 	case "Query.validateToken":
 		if e.complexity.Query.ValidateToken == nil {
@@ -242,12 +256,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.Birth(childComplexity), true
 
-	case "User.description":
-		if e.complexity.User.Description == nil {
+	case "User.createdAt":
+		if e.complexity.User.CreatedAt == nil {
 			break
 		}
 
-		return e.complexity.User.Description(childComplexity), true
+		return e.complexity.User.CreatedAt(childComplexity), true
 
 	case "User.email":
 		if e.complexity.User.Email == nil {
@@ -276,6 +290,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.User.Name(childComplexity), true
+
+	case "User.sign":
+		if e.complexity.User.Sign == nil {
+			break
+		}
+
+		return e.complexity.User.Sign(childComplexity), true
 
 	case "User.token":
 		if e.complexity.User.Token == nil {
@@ -351,6 +372,7 @@ var parsedSchema = gqlparser.MustLoadSchema(
   mainID: ObjectID!
   crushID: ObjectID!
   type: String!
+  createdAt: Time!
 }
 
 input NewAction {
@@ -365,21 +387,23 @@ input NewAction {
 }
 `},
 	&ast.Source{Name: "schema/query.graphql", Input: `type Query {
-  users(offset: Int! = -1, limit: Int! = -1): [User]!
-  matches(mainID: ObjectID!): [ObjectID]!
+  getUsers(offset: Int! = -1, limit: Int! = -1): [User]!
+  getMatches(mainID: ObjectID!): [ObjectID]!
   auth(input: Auth!): User!
   validateToken(input: String!): Boolean!
 }
 `},
-	&ast.Source{Name: "schema/types.graphql", Input: `scalar ObjectID
+	&ast.Source{Name: "schema/types.graphql", Input: `scalar Time
+scalar ObjectID
 `},
 	&ast.Source{Name: "schema/user.graphql", Input: `type User {
   id: ObjectID!
   token: Token!
   email: String!
   name: String!
-  description: String
-  birth: String
+  sign: String!
+  birth: Time!
+  createdAt: Time!
   likes: [String]
 }
 
@@ -397,8 +421,7 @@ input NewUser {
   name: String!
   email: String!
   password: String!
-  description: String!
-  birth: String!
+  birth: Time!
 }
 `},
 )
@@ -412,7 +435,7 @@ func (ec *executionContext) field_Mutation_createDislike_args(ctx context.Contex
 	args := map[string]interface{}{}
 	var arg0 action.NewAction
 	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋactionᚐNewAction(ctx, tmp)
+		arg0, err = ec.unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐNewAction(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -426,7 +449,7 @@ func (ec *executionContext) field_Mutation_createLike_args(ctx context.Context, 
 	args := map[string]interface{}{}
 	var arg0 action.NewAction
 	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋactionᚐNewAction(ctx, tmp)
+		arg0, err = ec.unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐNewAction(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -440,7 +463,7 @@ func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, 
 	args := map[string]interface{}{}
 	var arg0 user.NewUser
 	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐNewUser(ctx, tmp)
+		arg0, err = ec.unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐNewUser(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -477,7 +500,7 @@ func (ec *executionContext) field_Query_auth_args(ctx context.Context, rawArgs m
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_matches_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Query_getMatches_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 primitive.ObjectID
@@ -491,7 +514,7 @@ func (ec *executionContext) field_Query_matches_args(ctx context.Context, rawArg
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Query_getUsers_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 int
@@ -711,6 +734,43 @@ func (ec *executionContext) _Action_type(ctx context.Context, field graphql.Coll
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Action_createdAt(ctx context.Context, field graphql.CollectedField, obj *action.Action) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Action",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Mutation_createUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
@@ -749,7 +809,7 @@ func (ec *executionContext) _Mutation_createUser(ctx context.Context, field grap
 	res := resTmp.(*user.User)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
+	return ec.marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createLike(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -790,7 +850,7 @@ func (ec *executionContext) _Mutation_createLike(ctx context.Context, field grap
 	res := resTmp.(*action.Action)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalOAction2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋactionᚐAction(ctx, field.Selections, res)
+	return ec.marshalOAction2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐAction(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createDislike(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -831,10 +891,10 @@ func (ec *executionContext) _Mutation_createDislike(ctx context.Context, field g
 	res := resTmp.(*action.Action)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalOAction2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋactionᚐAction(ctx, field.Selections, res)
+	return ec.marshalOAction2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐAction(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_getUsers(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -851,7 +911,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	}
 	ctx = graphql.WithResolverContext(ctx, rctx)
 	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Query_users_args(ctx, rawArgs)
+	args, err := ec.field_Query_getUsers_args(ctx, rawArgs)
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
@@ -860,7 +920,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Users(rctx, args["offset"].(int), args["limit"].(int))
+		return ec.resolvers.Query().GetUsers(rctx, args["offset"].(int), args["limit"].(int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -875,10 +935,10 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 	res := resTmp.([]*user.User)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Query_matches(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_getMatches(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -895,7 +955,7 @@ func (ec *executionContext) _Query_matches(ctx context.Context, field graphql.Co
 	}
 	ctx = graphql.WithResolverContext(ctx, rctx)
 	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Query_matches_args(ctx, rawArgs)
+	args, err := ec.field_Query_getMatches_args(ctx, rawArgs)
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
@@ -904,7 +964,7 @@ func (ec *executionContext) _Query_matches(ctx context.Context, field graphql.Co
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Matches(rctx, args["mainID"].(primitive.ObjectID))
+		return ec.resolvers.Query().GetMatches(rctx, args["mainID"].(primitive.ObjectID))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -963,7 +1023,7 @@ func (ec *executionContext) _Query_auth(ctx context.Context, field graphql.Colle
 	res := resTmp.(*user.User)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_validateToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1230,7 +1290,7 @@ func (ec *executionContext) _User_token(ctx context.Context, field graphql.Colle
 	res := resTmp.(user.Token)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNToken2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐToken(ctx, field.Selections, res)
+	return ec.marshalNToken2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐToken(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
@@ -1307,7 +1367,7 @@ func (ec *executionContext) _User_name(ctx context.Context, field graphql.Collec
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_description(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_sign(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -1320,25 +1380,28 @@ func (ec *executionContext) _User_description(ctx context.Context, field graphql
 		Object:   "User",
 		Field:    field,
 		Args:     nil,
-		IsMethod: false,
+		IsMethod: true,
 	}
 	ctx = graphql.WithResolverContext(ctx, rctx)
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Description, nil
+		return ec.resolvers.User().Sign(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
 	res := resTmp.(string)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalOString2string(ctx, field.Selections, res)
+	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_birth(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
@@ -1367,12 +1430,52 @@ func (ec *executionContext) _User_birth(ctx context.Context, field graphql.Colle
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(time.Time)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalOString2string(ctx, field.Selections, res)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_likes(ctx context.Context, field graphql.CollectedField, obj *user.User) (ret graphql.Marshaler) {
@@ -2632,15 +2735,9 @@ func (ec *executionContext) unmarshalInputNewUser(ctx context.Context, obj inter
 			if err != nil {
 				return it, err
 			}
-		case "description":
-			var err error
-			it.Description, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
 		case "birth":
 			var err error
-			it.Birth, err = ec.unmarshalNString2string(ctx, v)
+			it.Birth, err = ec.unmarshalNTime2timeᚐTime(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -2686,6 +2783,11 @@ func (ec *executionContext) _Action(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "type":
 			out.Values[i] = ec._Action_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Action_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -2747,7 +2849,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Query")
-		case "users":
+		case "getUsers":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
 				defer func() {
@@ -2755,13 +2857,13 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_users(ctx, field)
+				res = ec._Query_getUsers(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
 				return res
 			})
-		case "matches":
+		case "getMatches":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
 				defer func() {
@@ -2769,7 +2871,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
-				res = ec._Query_matches(ctx, field)
+				res = ec._Query_getMatches(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -2864,27 +2966,47 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._User_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "token":
 			out.Values[i] = ec._User_token(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "email":
 			out.Values[i] = ec._User_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._User_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
-		case "description":
-			out.Values[i] = ec._User_description(ctx, field, obj)
+		case "sign":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_sign(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "birth":
 			out.Values[i] = ec._User_birth(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._User_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
+			}
 		case "likes":
 			out.Values[i] = ec._User_likes(ctx, field, obj)
 		default:
@@ -3175,11 +3297,11 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋactionᚐNewAction(ctx context.Context, v interface{}) (action.NewAction, error) {
+func (ec *executionContext) unmarshalNNewAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐNewAction(ctx context.Context, v interface{}) (action.NewAction, error) {
 	return ec.unmarshalInputNewAction(ctx, v)
 }
 
-func (ec *executionContext) unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐNewUser(ctx context.Context, v interface{}) (user.NewUser, error) {
+func (ec *executionContext) unmarshalNNewUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐNewUser(ctx context.Context, v interface{}) (user.NewUser, error) {
 	return ec.unmarshalInputNewUser(ctx, v)
 }
 
@@ -3240,15 +3362,29 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) marshalNToken2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐToken(ctx context.Context, sel ast.SelectionSet, v user.Token) graphql.Marshaler {
+func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v interface{}) (time.Time, error) {
+	return graphql.UnmarshalTime(v)
+}
+
+func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
+	res := graphql.MarshalTime(v)
+	if res == graphql.Null {
+		if !ec.HasError(graphql.GetResolverContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNToken2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐToken(ctx context.Context, sel ast.SelectionSet, v user.Token) graphql.Marshaler {
 	return ec._Token(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v []*user.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v []*user.User) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3272,7 +3408,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackend
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx, sel, v[i])
+			ret[i] = ec.marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3285,7 +3421,7 @@ func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋastrohotᚋbackend
 	return ret
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
 	if v == nil {
 		if !ec.HasError(graphql.GetResolverContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -3521,11 +3657,11 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
-func (ec *executionContext) marshalOAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋactionᚐAction(ctx context.Context, sel ast.SelectionSet, v action.Action) graphql.Marshaler {
+func (ec *executionContext) marshalOAction2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐAction(ctx context.Context, sel ast.SelectionSet, v action.Action) graphql.Marshaler {
 	return ec._Action(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalOAction2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋactionᚐAction(ctx context.Context, sel ast.SelectionSet, v *action.Action) graphql.Marshaler {
+func (ec *executionContext) marshalOAction2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋactionᚐAction(ctx context.Context, sel ast.SelectionSet, v *action.Action) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -3633,11 +3769,11 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return ec.marshalOString2string(ctx, sel, *v)
 }
 
-func (ec *executionContext) marshalOUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2githubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v user.User) graphql.Marshaler {
 	return ec._User(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋmodelᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋastrohotᚋbackendᚋinternalᚋdomainᚋuserᚐUser(ctx context.Context, sel ast.SelectionSet, v *user.User) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

@@ -5,6 +5,7 @@ import (
 
 	"github.com/astrohot/backend/internal/lib/auth"
 	"github.com/astrohot/backend/internal/lib/database"
+	"github.com/astrohot/backend/internal/lib/zodiac"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -17,24 +18,24 @@ type Token struct {
 
 // NewUser ...
 type NewUser struct {
-	Name        string
-	Email       string
-	Password    string
-	Description string
-	Birth       string
+	Name     string
+	Email    string
+	Password string
+	Birth    time.Time
 }
 
 // User ...
 type User struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	Token       Token              `bson:"-" json:"-"`
-	Email       string             `bson:"email" json:"email,omitempty"`
-	Password    string             `bson:"password" json:"password,omitempty"`
-	Name        string             `bson:"name" json:"name,omitempty"`
-	Description string             `bson:"description" json:"description,omitempty"`
-	Birth       string             `bson:"birth" json:"birth,omitempty"`
-	Likes       []string           `bson:"-" json:"-"`
-	where       database.FilterList
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	Token     Token              `bson:"-" json:"-"`
+	Email     string             `bson:"email" json:"email,omitempty"`
+	Password  string             `bson:"password" json:"password,omitempty"`
+	Name      string             `bson:"name" json:"name,omitempty"`
+	Sign      zodiac.Sign        `bson:"sign" json:"sign,omitempty"`
+	Birth     time.Time          `bson:"birth" json:"birth,omitempty"`
+	CreatedAt time.Time          `bson:"createdAt" json:"createdAt,omitempty"`
+	Likes     []string           `bson:"-" json:"-"`
+	where     database.FilterList
 }
 
 // Authenticate returns a valid token string or an error. It implements the

@@ -1,6 +1,8 @@
 package action
 
 import (
+	"time"
+
 	"github.com/astrohot/backend/internal/lib/database"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -19,11 +21,12 @@ type NewAction struct {
 
 // Action ...
 type Action struct {
-	ID      primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	MainID  primitive.ObjectID `bson:"mainID" json:"mainID,omitempty"`
-	CrushID primitive.ObjectID `bson:"crushID" json:"crushID,omitempty"`
-	Type    string             `bson:"action" json:"action,omitempty"`
-	where   database.FilterList
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	MainID    primitive.ObjectID `bson:"mainID" json:"mainID,omitempty"`
+	CrushID   primitive.ObjectID `bson:"crushID" json:"crushID,omitempty"`
+	Type      string             `bson:"action" json:"action,omitempty"`
+	CreatedAt time.Time          `bson:"createdAt" json:"createdAt,omitempty"`
+	where     database.FilterList
 }
 
 // AddFilter ...

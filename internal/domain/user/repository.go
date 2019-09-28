@@ -37,6 +37,7 @@ func (u User) Find(ctx context.Context) (us []*User, err error) {
 
 // Insert ...
 func (u User) Insert(ctx context.Context) (User, error) {
+	u.CreatedAt = time.Now().UTC()
 	insertedID, err := database.InsertOne(ctx, u)
 	if err != nil {
 		return User{}, err

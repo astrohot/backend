@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/astrohot/backend/internal/api/generated"
+	"github.com/astrohot/backend/internal/domain/action"
+	"github.com/astrohot/backend/internal/domain/user"
 	"github.com/astrohot/backend/internal/lib/auth"
-	"github.com/astrohot/backend/internal/model/action"
-	"github.com/astrohot/backend/internal/model/user"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -63,7 +63,7 @@ func (r *queryResolver) Auth(ctx context.Context, input generated.Auth) (*user.U
 	return &u, nil
 }
 
-func (r *queryResolver) Users(ctx context.Context, offset, limit int) ([]*user.User, error) {
+func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*user.User, error) {
 	// Check if user is authenticated.
 	u, ok := auth.FromContext(ctx).(user.User)
 	if !ok {
@@ -107,6 +107,6 @@ func (r *queryResolver) Users(ctx context.Context, offset, limit int) ([]*user.U
 	return list[offset : limit+offset], nil
 }
 
-func (r *queryResolver) Matches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
+func (r *queryResolver) GetMatches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
 	return nil, nil
 }

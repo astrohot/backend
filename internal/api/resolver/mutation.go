@@ -4,9 +4,10 @@ import (
 	"context"
 	"log"
 
+	"github.com/astrohot/backend/internal/domain/action"
+	"github.com/astrohot/backend/internal/domain/user"
 	"github.com/astrohot/backend/internal/lib/auth"
-	"github.com/astrohot/backend/internal/model/action"
-	"github.com/astrohot/backend/internal/model/user"
+	"github.com/astrohot/backend/internal/lib/zodiac"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -32,11 +33,11 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input user.NewUser) (
 	}
 
 	u = user.User{
-		Email:       input.Email,
-		Password:    string(password),
-		Name:        input.Name,
-		Description: input.Description,
-		Birth:       input.Birth,
+		Email:    input.Email,
+		Password: string(password),
+		Name:     input.Name,
+		Birth:    input.Birth,
+		Sign:     zodiac.GetSign(input.Birth),
 	}
 
 	if u, err = u.Insert(ctx); err != nil {

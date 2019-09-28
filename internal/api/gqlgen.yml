@@ -17,14 +17,14 @@ resolver:
 autobind: []
 models:
   NewUser:
-    model: github.com/astrohot/backend/internal/model/user.NewUser
+    model: github.com/astrohot/backend/internal/domain/user.NewUser
   User:
-    model: github.com/astrohot/backend/internal/model/user.User
+    model: github.com/astrohot/backend/internal/domain/user.User
   Token:
-    model: github.com/astrohot/backend/internal/model/user.Token
+    model: github.com/astrohot/backend/internal/domain/user.Token
   Action:
-    model: github.com/astrohot/backend/internal/model/action.Action
+    model: github.com/astrohot/backend/internal/domain/action.Action
   NewAction:
-    model: github.com/astrohot/backend/internal/model/action.NewAction
+    model: github.com/astrohot/backend/internal/domain/action.NewAction
   ObjectID:
     model: github.com/astrohot/backend/internal/api/types/third.ObjectID

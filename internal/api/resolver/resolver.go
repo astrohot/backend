@@ -18,3 +18,8 @@ func (r *Resolver) Mutation() generated.MutationResolver {
 func (r *Resolver) Query() generated.QueryResolver {
 	return &queryResolver{r}
 }
+
+// User ...
+func (r *Resolver) User() generated.UserResolver {
+	return &userResolver{r}
+}
