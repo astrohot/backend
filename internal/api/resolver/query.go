@@ -2,11 +2,10 @@ package resolver
 
 import (
 	"context"
-	"log"
 
 	"github.com/astrohot/backend/internal/api/generated"
-	"github.com/astrohot/backend/internal/auth"
-	"github.com/astrohot/backend/internal/model/like"
+	"github.com/astrohot/backend/internal/lib/auth"
+	"github.com/astrohot/backend/internal/model/action"
 	"github.com/astrohot/backend/internal/model/user"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -41,7 +40,9 @@ func (r *queryResolver) Auth(ctx context.Context, input generated.Auth) (*user.U
 
 	// If not, then try to retrieve user from database
 	if !ok || u.Token.Value == "" {
-		u, err = r.DB.GetUserByEmail(ctx, input.Email)
+		u = u.AddFilter("email", input.Email)
+		u, err = u.FindOne(ctx)
+
 		if err == mongo.ErrNoDocuments {
 			return nil, ErrUserNotFound
 		}
@@ -62,41 +63,48 @@ func (r *queryResolver) Auth(ctx context.Context, input generated.Auth) (*user.U
 	return &u, nil
 }
 
-func (r *queryResolver) Users(ctx context.Context) (us []*user.User, err error) {
-	return
-}
-
-func (r *queryResolver) Likes(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
-	// Check if user is authenticated. If it's not, return with error.
+func (r *queryResolver) Users(ctx context.Context, offset, limit int) ([]*user.User, error) {
+	// Check if user is authenticated.
 	u, ok := auth.FromContext(ctx).(user.User)
 	if !ok {
 		return nil, ErrNotLogged
 	}
 
-	// Get likes associated with that user.
-	coll := r.DB.Collection("likes")
-	where := bson.M{"mainID": u.ID}
-
-	cursor, err := coll.Find(ctx, where)
+	// Get list of users.
+	u = u.AddFilter("_id", bson.M{"$ne": u.ID})
+	us, err := u.Find(ctx)
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 
-	var ls []*primitive.ObjectID
-	defer cursor.Close(ctx)
-	for cursor.Next(ctx) {
-		var l like.Like
-		if err = cursor.Decode(&l); err != nil {
-			log.Println(err)
-			ls = nil
-			break
-		}
-
-		ls = append(ls, &l.CrushID)
+	// Get all likes and dislikes (actions) of that user.
+	as, err := action.Action{}.AddFilter("mainID", u.ID).Find(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return ls, err
+	// Filter list of users excluding users with like or dislike.
+	actionMap := make(map[primitive.ObjectID]struct{}, len(as))
+	for _, a := range as {
+		actionMap[a.CrushID] = struct{}{}
+	}
+
+	var list []*user.User
+	for _, u := range us {
+		if _, ok := actionMap[u.ID]; !ok {
+			list = append(list, u)
+		}
+	}
+
+	if offset < 0 || offset >= len(list) {
+		offset = 0
+	}
+
+	if limit < 0 || limit > len(list) {
+		limit = len(list)
+	}
+
+	return list[offset : limit+offset], nil
 }
 
 func (r *queryResolver) Matches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {

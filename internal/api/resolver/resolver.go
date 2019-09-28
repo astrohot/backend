@@ -4,13 +4,10 @@ package resolver
 
 import (
 	"github.com/astrohot/backend/internal/api/generated"
-	"github.com/astrohot/backend/internal/database"
 )
 
 // Resolver ...
-type Resolver struct {
-	DB *database.DB
-}
+type Resolver struct{}
 
 // Mutation ...
 func (r *Resolver) Mutation() generated.MutationResolver {

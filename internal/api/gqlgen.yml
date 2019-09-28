@@ -22,9 +22,9 @@ models:
     model: github.com/astrohot/backend/internal/model/user.User
   Token:
     model: github.com/astrohot/backend/internal/model/user.Token
-  Like:
-    model: github.com/astrohot/backend/internal/model/like.Like
-  NewLike:
-    model: github.com/astrohot/backend/internal/model/like.NewLike
+  Action:
+    model: github.com/astrohot/backend/internal/model/action.Action
+  NewAction:
+    model: github.com/astrohot/backend/internal/model/action.NewAction
   ObjectID:
     model: github.com/astrohot/backend/internal/api/types/third.ObjectID

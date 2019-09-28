@@ -3,7 +3,8 @@ package user
 import (
 	"time"
 
-	"github.com/astrohot/backend/internal/auth"
+	"github.com/astrohot/backend/internal/lib/auth"
+	"github.com/astrohot/backend/internal/lib/database"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -33,6 +34,7 @@ type User struct {
 	Description string             `bson:"description" json:"description,omitempty"`
 	Birth       string             `bson:"birth" json:"birth,omitempty"`
 	Likes       []string           `bson:"-" json:"-"`
+	where       database.FilterList
 }
 
 // Authenticate returns a valid token string or an error. It implements the
@@ -57,4 +59,30 @@ func (u User) Authenticate(plain string) (string, error) {
 	}
 
 	return tok, nil
+}
+
+// ClearFilter ...
+func (u User) ClearFilter() User {
+	u.where = nil
+	return u
+}
+
+// AddFilter ...
+func (u User) AddFilter(field string, value interface{}) User {
+	u.where = append(u.where, database.Filter{
+		Field: field,
+		Value: value,
+	})
+
+	return u
+}
+
+// Collection ...
+func (u User) Collection() string {
+	return "users"
+}
+
+// Where ...
+func (u User) Where() database.FilterList {
+	return u.where
 }

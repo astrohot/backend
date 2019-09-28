@@ -1,10 +1,11 @@
-type Like {
+type Action {
   id: ObjectID!
   mainID: ObjectID!
   crushID: ObjectID!
+  type: String!
 }
 
-input NewLike {
+input NewAction {
   mainID: ObjectID!
   crushID: ObjectID!
 }

@@ -3,13 +3,10 @@ package resolver
 import (
 	"context"
 	"log"
-	"time"
 
-	"github.com/astrohot/backend/internal/auth"
-	"github.com/astrohot/backend/internal/model/like"
+	"github.com/astrohot/backend/internal/lib/auth"
+	"github.com/astrohot/backend/internal/model/action"
 	"github.com/astrohot/backend/internal/model/user"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -18,12 +15,10 @@ type mutationResolver struct {
 }
 
 func (r *mutationResolver) CreateUser(ctx context.Context, input user.NewUser) (*user.User, error) {
-	// First insert the credentials into user collection
-	coll := r.DB.Collection("users")
-
-	// Check if user already exists
-	exists := r.DB.Exists(ctx, coll, bson.M{"email": input.Email})
-	if exists {
+	// Check if user already exists. If it exists then err must be
+	// mongo.ErrNoDocuments. Otherwise, err is nil.
+	u := user.User{}.AddFilter("email", input.Email)
+	if _, err := u.FindOne(ctx); err == nil {
 		return nil, ErrUserExists
 	}
 
@@ -36,7 +31,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input user.NewUser) (
 		return nil, err
 	}
 
-	u := user.User{
+	u = user.User{
 		Email:       input.Email,
 		Password:    string(password),
 		Name:        input.Name,
@@ -44,27 +39,15 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input user.NewUser) (
 		Birth:       input.Birth,
 	}
 
-	result, err := coll.InsertOne(ctx, u)
-	if err != nil {
+	if u, err = u.Insert(ctx); err != nil {
 		log.Println(err)
 		return nil, err
-	}
-
-	u.ID = result.InsertedID.(primitive.ObjectID)
-	tok, err := auth.CreateToken(u.Email, time.Now().Add(time.Hour*24))
-	if err != nil {
-		return nil, err
-	}
-
-	u.Token = user.Token{
-		Value:   tok,
-		IsValid: true,
 	}
 
 	return &u, nil
 }
 
-func (r *mutationResolver) CreateLike(ctx context.Context, input like.NewLike) (*like.Like, error) {
+func (r *mutationResolver) CreateLike(ctx context.Context, input action.NewAction) (*action.Action, error) {
 	// Check if user is authenticated. If it's not, return with error.
 	u, _ := auth.FromContext(ctx).(user.User)
 	if u.Token.Value == "" {
@@ -83,19 +66,51 @@ func (r *mutationResolver) CreateLike(ctx context.Context, input like.NewLike) (
 
 	}
 
+	a := action.Action{
+		MainID:  u.ID,
+		CrushID: input.CrushID,
+		Type:    action.Like,
+	}
+
 	// Create the new like.
-	coll := r.DB.Collection("likes")
-	result, err := coll.InsertOne(ctx, input)
+	a, err := a.Insert(ctx)
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 
-	l := like.Like{
-		ID:      result.InsertedID.(primitive.ObjectID),
-		MainID:  u.ID,
-		CrushID: input.CrushID,
+	return &a, nil
+}
+
+func (r *mutationResolver) CreateDislike(ctx context.Context, input action.NewAction) (*action.Action, error) {
+	// Check if user is authenticated. If it's not, return with error.
+	u, _ := auth.FromContext(ctx).(user.User)
+	if u.Token.Value == "" {
+		return nil, ErrNotLogged
+
 	}
 
-	return &l, nil
+	// Check if input.MainID refers to the user ID.
+	if u.ID != input.MainID {
+		return nil, ErrMismatchMainID
+	}
+
+	// Check if input.MainID is not the same as input.CrushID.
+	if input.MainID == input.CrushID {
+		return nil, ErrMainEqualsCrush
+
+	}
+
+	a := action.Action{
+		MainID:  u.ID,
+		CrushID: input.CrushID,
+		Type:    action.Dislike,
+	}
+
+	// Create the new like.
+	a, err := a.Insert(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &a, nil
 }

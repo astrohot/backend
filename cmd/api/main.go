@@ -10,7 +10,7 @@ import (
 	"github.com/astrohot/backend/cmd/api/middleware/auth"
 	"github.com/astrohot/backend/internal/api/generated"
 	"github.com/astrohot/backend/internal/api/resolver"
-	"github.com/astrohot/backend/internal/database"
+	"github.com/astrohot/backend/internal/lib/database"
 	"github.com/go-chi/chi"
 	"github.com/rs/cors"
 )
@@ -23,7 +23,7 @@ func main() {
 		port = defaultPort
 	}
 
-	database, err := database.Create(context.Background())
+	err := database.Init(context.Background())
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -32,17 +32,14 @@ func main() {
 
 	// Add middlewares around every request.
 	router.Use(cors.Default().Handler)
-	router.Use(auth.Middleware(database))
+	router.Use(auth.Middleware())
 
 	router.Handle("/", handler.Playground("GraphQL playground", "/graphql"))
 	router.Handle("/graphql", handler.GraphQL(
 		generated.NewExecutableSchema(
-			generated.Config{
-				Resolvers: &resolver.Resolver{
-					DB: database,
-				},
-			},
-		)))
+			generated.Config{Resolvers: &resolver.Resolver{}},
+		)),
+	)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, router))

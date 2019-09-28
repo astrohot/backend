@@ -1,7 +1,6 @@
 type Query {
-  users: [User]!
+  users(offset: Int! = -1, limit: Int! = -1): [User]!
+  matches(mainID: ObjectID!): [ObjectID]!
   auth(input: Auth!): User!
   validateToken(input: String!): Boolean!
-  likes(mainID: ObjectID!): [ObjectID]!
-  matches(mainID: ObjectID!): [ObjectID]!
 }

@@ -3,23 +3,23 @@ package auth
 import (
 	"net/http"
 
-	"github.com/astrohot/backend/internal/auth"
-	"github.com/astrohot/backend/internal/database"
+	"github.com/astrohot/backend/internal/lib/auth"
 	"github.com/astrohot/backend/internal/model/user"
 )
 
 const authHeader = "Authorization"
 
 // Middleware decodes the authorization header and insert user into the context.
-func Middleware(db *database.DB) func(http.Handler) http.Handler {
+func Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenString := r.Header.Get(authHeader)
+			u := user.User{}
 
 			// If token is empty go ahead without inserting the user into the
 			// context.
 			if tokenString == "" {
-				ctx := auth.WithContext(r.Context(), user.User{})
+				ctx := auth.WithContext(r.Context(), u)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
@@ -28,11 +28,16 @@ func Middleware(db *database.DB) func(http.Handler) http.Handler {
 			token, err := auth.Parse(tokenString)
 			switch err {
 			case nil:
-				u, err := db.GetUserByEmail(r.Context(), token.Email)
+				u = u.AddFilter("email", token.Email)
+				u, err := u.FindOne(r.Context())
+
 				if err != nil {
 					http.Error(w, "user not found", http.StatusUnauthorized)
 					return
 				}
+
+				// Clear filter for future uses.
+				u = u.ClearFilter()
 
 				// Put user into the context.
 				u.Token = user.Token{
@@ -40,7 +45,7 @@ func Middleware(db *database.DB) func(http.Handler) http.Handler {
 					IsValid: true,
 				}
 
-				ctx := auth.WithContext(r.Context(), &u)
+				ctx := auth.WithContext(r.Context(), u)
 
 				// Call the next with our new context.
 				next.ServeHTTP(w, r.WithContext(ctx))
