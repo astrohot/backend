@@ -7,6 +7,7 @@ import (
 	"github.com/astrohot/backend/internal/domain/action"
 	"github.com/astrohot/backend/internal/domain/user"
 	"github.com/astrohot/backend/internal/lib/auth"
+	"github.com/astrohot/backend/internal/lib/zodiac"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -37,7 +38,6 @@ func (r *queryResolver) Auth(ctx context.Context, input generated.Auth) (*user.U
 	// Check if user is already authenticated and thus it is inside the
 	// context.
 	u, ok := auth.FromContext(ctx).(user.User)
-
 	// If not, then try to retrieve user from database
 	if !ok || u.Token.Value == "" {
 		u = u.AddFilter("email", input.Email)
@@ -109,4 +109,24 @@ func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*use
 
 func (r *queryResolver) GetMatches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
 	return nil, nil
+}
+
+func (r *queryResolver) GetHoroscope(ctx context.Context, userID primitive.ObjectID) (string, error) {
+	// Check if user is authenticated.
+	u, ok := auth.FromContext(ctx).(user.User)
+	if !ok {
+		return "", ErrNotLogged
+	}
+
+	u, err := u.AddFilter("_id", u.ID).FindOne(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	horoscope, err := zodiac.GetHoroscope(u.Sign)
+	if err != nil {
+		return "", err
+	}
+
+	return horoscope, err
 }

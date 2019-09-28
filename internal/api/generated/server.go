@@ -64,6 +64,7 @@ type ComplexityRoot struct {
 
 	Query struct {
 		Auth          func(childComplexity int, input Auth) int
+		GetHoroscope  func(childComplexity int, userID primitive.ObjectID) int
 		GetMatches    func(childComplexity int, mainID primitive.ObjectID) int
 		GetUsers      func(childComplexity int, offset int, limit int) int
 		ValidateToken func(childComplexity int, input string) int
@@ -94,6 +95,7 @@ type MutationResolver interface {
 type QueryResolver interface {
 	GetUsers(ctx context.Context, offset int, limit int) ([]*user.User, error)
 	GetMatches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error)
+	GetHoroscope(ctx context.Context, userID primitive.ObjectID) (string, error)
 	Auth(ctx context.Context, input Auth) (*user.User, error)
 	ValidateToken(ctx context.Context, input string) (bool, error)
 }
@@ -198,6 +200,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Auth(childComplexity, args["input"].(Auth)), true
+
+	case "Query.getHoroscope":
+		if e.complexity.Query.GetHoroscope == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getHoroscope_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetHoroscope(childComplexity, args["userID"].(primitive.ObjectID)), true
 
 	case "Query.getMatches":
 		if e.complexity.Query.GetMatches == nil {
@@ -389,6 +403,7 @@ input NewAction {
 	&ast.Source{Name: "schema/query.graphql", Input: `type Query {
   getUsers(offset: Int! = -1, limit: Int! = -1): [User]!
   getMatches(mainID: ObjectID!): [ObjectID]!
+  getHoroscope(userID: ObjectID!): String!
   auth(input: Auth!): User!
   validateToken(input: String!): Boolean!
 }
@@ -497,6 +512,20 @@ func (ec *executionContext) field_Query_auth_args(ctx context.Context, rawArgs m
 		}
 	}
 	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_getHoroscope_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 primitive.ObjectID
+	if tmp, ok := rawArgs["userID"]; ok {
+		arg0, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["userID"] = arg0
 	return args, nil
 }
 
@@ -980,6 +1009,50 @@ func (ec *executionContext) _Query_getMatches(ctx context.Context, field graphql
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
 	return ec.marshalNObjectID2ᚕᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_getHoroscope(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_getHoroscope_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	rctx.Args = args
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetHoroscope(rctx, args["userID"].(primitive.ObjectID))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_auth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2872,6 +2945,20 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_getMatches(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "getHoroscope":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getHoroscope(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
