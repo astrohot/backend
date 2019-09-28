@@ -31,7 +31,10 @@ func main() {
 	router := chi.NewRouter()
 
 	// Add middlewares around every request.
-	router.Use(cors.Default().Handler)
+	router.Use(cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedHeaders: []string{"Content-type", "Authorization"},
+	}).Handler)
 	router.Use(auth.Middleware())
 
 	router.Handle("/", handler.Playground("GraphQL playground", "/graphql"))
