@@ -2,13 +2,15 @@ package resolver
 
 import (
 	"context"
+	"log"
+	"sync"
 
 	"github.com/astrohot/backend/internal/api/generated"
 	"github.com/astrohot/backend/internal/domain/action"
 	"github.com/astrohot/backend/internal/domain/user"
 	"github.com/astrohot/backend/internal/lib/auth"
+	"github.com/astrohot/backend/internal/lib/database"
 	"github.com/astrohot/backend/internal/lib/zodiac"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -25,6 +27,7 @@ func (r *queryResolver) ValidateToken(ctx context.Context, token string) (bool, 
 	case auth.ErrInvalidToken:
 		return false, nil
 	default:
+		log.Println(err)
 		return false, err
 	}
 }
@@ -71,15 +74,21 @@ func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*use
 	}
 
 	// Get list of users.
-	u = u.AddFilter("_id", bson.M{"$ne": u.ID})
+	u = u.AddFilter("_id", database.Filter{
+		Field: "$ne",
+		Value: u.ID,
+	})
+
 	us, err := u.Find(ctx)
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 
 	// Get all likes and dislikes (actions) of that user.
 	as, err := action.Action{}.AddFilter("mainID", u.ID).Find(ctx)
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 
@@ -109,12 +118,83 @@ func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*use
 
 func (r *queryResolver) GetMatches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
 	// Check if user is authenticated.
-	_, ok := auth.FromContext(ctx).(user.User)
+	u, ok := auth.FromContext(ctx).(user.User)
 	if !ok {
 		return nil, ErrNotLogged
 	}
 
-	return nil, nil
+	var (
+		wg        sync.WaitGroup
+		likesFrom []*action.Action
+		likesTo   []*action.Action
+	)
+
+	errCh := make(chan error, 2)
+	quitCh := make(chan bool)
+
+	// Handling errors.
+	go func() {
+		wg.Wait()
+
+		close(errCh)
+		shouldQuit := false
+
+		for err := range errCh {
+			if err != nil {
+				log.Println(err)
+				shouldQuit = true
+			}
+		}
+
+		quitCh <- shouldQuit
+	}()
+
+	wg.Add(2)
+
+	// Get Likes where mainID is u.ID
+	go func() {
+		var err error
+		defer wg.Done()
+
+		likesFrom, err = action.Action{}.AddFilter("$and", database.FilterList{
+			{Field: "mainID", Value: u.ID},
+			{Field: "type", Value: action.Like},
+		}).Find(ctx)
+
+		errCh <- err
+	}()
+
+	// Get Likes where u.ID is the crushID (reverse order).
+	go func() {
+		var err error
+		defer wg.Done()
+
+		likesTo, err = action.Action{}.AddFilter("$and", database.FilterList{
+			{Field: "crushID", Value: u.ID},
+			{Field: "type", Value: action.Like},
+		}).Find(ctx)
+
+		errCh <- err
+	}()
+
+	if shouldQuit := <-quitCh; shouldQuit {
+		return nil, ErrFetchFailed
+	}
+
+	// Filter users to get only those where there're likes in both orders.
+	isBoth := make(map[primitive.ObjectID]struct{}, len(likesTo))
+	for _, l := range likesTo {
+		isBoth[l.MainID] = struct{}{}
+	}
+
+	matches := []*primitive.ObjectID{}
+	for _, l := range likesFrom {
+		if _, ok := isBoth[l.CrushID]; ok {
+			matches = append(matches, &l.CrushID)
+		}
+	}
+
+	return matches, nil
 }
 
 func (r *queryResolver) GetHoroscope(ctx context.Context, userID primitive.ObjectID) (string, error) {
@@ -126,11 +206,13 @@ func (r *queryResolver) GetHoroscope(ctx context.Context, userID primitive.Objec
 
 	u, err := u.AddFilter("_id", u.ID).FindOne(ctx)
 	if err != nil {
+		log.Println(err)
 		return "", err
 	}
 
 	horoscope, err := zodiac.GetHoroscope(u.Sign)
 	if err != nil {
+		log.Println(err)
 		return "", err
 	}
 

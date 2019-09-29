@@ -24,7 +24,7 @@ type Action struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
 	MainID    primitive.ObjectID `bson:"mainID" json:"mainID,omitempty"`
 	CrushID   primitive.ObjectID `bson:"crushID" json:"crushID,omitempty"`
-	Type      string             `bson:"action" json:"action,omitempty"`
+	Type      string             `bson:"type" json:"type,omitempty"`
 	CreatedAt time.Time          `bson:"createdAt" json:"createdAt,omitempty"`
 	where     database.FilterList
 }
