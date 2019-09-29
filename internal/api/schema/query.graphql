@@ -1,6 +1,6 @@
 type Query {
   getUsers(offset: Int! = -1, limit: Int! = -1): [User]!
-  getMatches(mainID: ObjectID!): [ObjectID]!
+  getMatches: [ObjectID]!
   getHoroscope: String!
   auth(input: Auth!): User!
   validateToken(input: String!): Boolean!

@@ -116,7 +116,7 @@ func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*use
 	return list[offset : limit+offset], nil
 }
 
-func (r *queryResolver) GetMatches(ctx context.Context, mainID primitive.ObjectID) ([]*primitive.ObjectID, error) {
+func (r *queryResolver) GetMatches(ctx context.Context) ([]*primitive.ObjectID, error) {
 	// Check if user is authenticated.
 	u, ok := auth.FromContext(ctx).(user.User)
 	if !ok {
