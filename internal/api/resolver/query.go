@@ -197,7 +197,7 @@ func (r *queryResolver) GetMatches(ctx context.Context, mainID primitive.ObjectI
 	return matches, nil
 }
 
-func (r *queryResolver) GetHoroscope(ctx context.Context, userID primitive.ObjectID) (string, error) {
+func (r *queryResolver) GetHoroscope(ctx context.Context) (string, error) {
 	// Check if user is authenticated.
 	u, ok := auth.FromContext(ctx).(user.User)
 	if !ok {
