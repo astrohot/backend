@@ -9,13 +9,14 @@ import (
 
 // Insert ...
 func (a Action) Insert(ctx context.Context) (Action, error) {
+	a.CreatedAt = time.Now().UTC()
 	insertedID, err := database.InsertOne(ctx, a)
+
 	if err != nil {
 		return Action{}, err
 	}
 
 	a.ID = insertedID
-	a.CreatedAt = time.Now().UTC()
 	return a, nil
 }
 
