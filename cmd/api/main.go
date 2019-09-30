@@ -23,7 +23,17 @@ func main() {
 		port = defaultPort
 	}
 
-	err := database.Init(context.Background())
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		log.Fatal("undefined database name")
+	}
+
+	dbURI := os.Getenv("DB_URI")
+	if dbURI == "" {
+		log.Fatal("undefined database uri")
+	}
+
+	err := database.Init(context.Background(), dbName, dbURI)
 	if err != nil {
 		log.Fatalln(err)
 	}

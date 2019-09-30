@@ -9,16 +9,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// Database config
-const (
-	dbName = "astrohot"
-	dbURI  = "mongodb+srv://admin:admin@cluster0-srljh.mongodb.net/test?retryWrites=true&w=majority"
-)
-
 var db *mongo.Database
 
 // Init ...
-func Init(ctx context.Context) (err error) {
+func Init(ctx context.Context, dbName, dbURI string) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
