@@ -19,6 +19,9 @@ RUN go mod download
 # Copy the source code.
 COPY . .
 
+# Run go:generate to generate code using gqlgen if needed.
+RUN CGO_ENABLED=0 go generate ./internal/api/...
+
 # Build the go app.
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build cmd/api/main.go
 

@@ -65,6 +65,8 @@ type ComplexityRoot struct {
 	Query struct {
 		Auth          func(childComplexity int, input Auth) int
 		GetHoroscope  func(childComplexity int) int
+		GetLikesFrom  func(childComplexity int) int
+		GetLikesTo    func(childComplexity int) int
 		GetMatches    func(childComplexity int) int
 		GetUsers      func(childComplexity int, offset int, limit int) int
 		ValidateToken func(childComplexity int, input string) int
@@ -96,6 +98,8 @@ type QueryResolver interface {
 	GetUsers(ctx context.Context, offset int, limit int) ([]*user.User, error)
 	GetMatches(ctx context.Context) ([]*primitive.ObjectID, error)
 	GetHoroscope(ctx context.Context) (string, error)
+	GetLikesFrom(ctx context.Context) ([]*primitive.ObjectID, error)
+	GetLikesTo(ctx context.Context) ([]*primitive.ObjectID, error)
 	Auth(ctx context.Context, input Auth) (*user.User, error)
 	ValidateToken(ctx context.Context, input string) (bool, error)
 }
@@ -207,6 +211,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.GetHoroscope(childComplexity), true
+
+	case "Query.getLikesFrom":
+		if e.complexity.Query.GetLikesFrom == nil {
+			break
+		}
+
+		return e.complexity.Query.GetLikesFrom(childComplexity), true
+
+	case "Query.getLikesTo":
+		if e.complexity.Query.GetLikesTo == nil {
+			break
+		}
+
+		return e.complexity.Query.GetLikesTo(childComplexity), true
 
 	case "Query.getMatches":
 		if e.complexity.Query.GetMatches == nil {
@@ -389,6 +407,8 @@ var parsedSchema = gqlparser.MustLoadSchema(
   getUsers(offset: Int! = -1, limit: Int! = -1): [User]!
   getMatches: [ObjectID]!
   getHoroscope: String!
+  getLikesFrom: [ObjectID]!
+  getLikesTo: [ObjectID]!
   auth(input: Auth!): User!
   validateToken(input: String!): Boolean!
 }
@@ -996,6 +1016,80 @@ func (ec *executionContext) _Query_getHoroscope(ctx context.Context, field graph
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_getLikesFrom(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetLikesFrom(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*primitive.ObjectID)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNObjectID2ᚕᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_getLikesTo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetLikesTo(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*primitive.ObjectID)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNObjectID2ᚕᚖgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_auth(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2878,6 +2972,34 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_getHoroscope(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "getLikesFrom":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getLikesFrom(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "getLikesTo":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getLikesTo(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}

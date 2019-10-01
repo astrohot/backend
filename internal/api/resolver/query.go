@@ -104,7 +104,6 @@ func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*use
 			list = append(list, u)
 		}
 	}
-
 	if offset < 0 || offset >= len(list) {
 		offset = 0
 	}
@@ -116,6 +115,55 @@ func (r *queryResolver) GetUsers(ctx context.Context, offset, limit int) ([]*use
 	return list[offset : limit+offset], nil
 }
 
+func (r *queryResolver) GetLikesFrom(ctx context.Context) ([]*primitive.ObjectID, error) {
+	// Check if user is authenticated.
+	u, ok := auth.FromContext(ctx).(user.User)
+	if !ok {
+		return nil, ErrNotLogged
+	}
+
+	// Get Likes where mainID is u.ID
+	likesFrom, err := action.Action{}.AddFilter("$and", database.FilterList{
+		{Field: "mainID", Value: u.ID},
+		{Field: "type", Value: action.Like},
+	}).Find(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var likes []*primitive.ObjectID
+	for _, l := range likesFrom {
+		likes = append(likes, &l.CrushID)
+	}
+
+	return likes, nil
+}
+
+func (r *queryResolver) GetLikesTo(ctx context.Context) ([]*primitive.ObjectID, error) {
+	// Check if user is authenticated.
+	u, ok := auth.FromContext(ctx).(user.User)
+	if !ok {
+		return nil, ErrNotLogged
+	}
+
+	// Get Likes where u.ID is the crushID (reverse order).
+	likesTo, err := action.Action{}.AddFilter("$and", database.FilterList{
+		{Field: "crushID", Value: u.ID},
+		{Field: "type", Value: action.Like},
+	}).Find(ctx)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var likes []*primitive.ObjectID
+	for _, l := range likesTo {
+		likes = append(likes, &l.CrushID)
+	}
+
+	return likes, nil
+}
 func (r *queryResolver) GetMatches(ctx context.Context) ([]*primitive.ObjectID, error) {
 	// Check if user is authenticated.
 	u, ok := auth.FromContext(ctx).(user.User)
