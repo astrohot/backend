@@ -1,10 +1,10 @@
-APP_NAME = astrohot/api
+app_name = astrohot/api
 
-### Docker Tasks ###
-build: # Build the container
-	docker build -t $(APP_NAME) .
+### docker tasks ###
+build: # build the container
+	docker build -t $(app_name) .
 
-run: # Run the container using default port
-	docker container run -p 8080:8080 --env-file .env $(APP_NAME)
+run: # run the container using default port
+	docker container run -p 8080:8080 --env-file .env $(app_name)
 
-up: build run # Build and run the container
+up: build run # build and run the container

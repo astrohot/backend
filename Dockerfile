@@ -1,8 +1,8 @@
-# Get the proper golang image to build the app.
+# Get the proper golang image to build the api.
 FROM golang:1.12-alpine
 
 # Add non-root user to be used in the second step.
-RUN adduser -D scratchuser
+RUN adduser -D apiuser
 
 # Get the proper dependencies.
 RUN apk update && apk add git ca-certificates
@@ -26,7 +26,7 @@ RUN CGO_ENABLED=0 go generate ./internal/api/...
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build cmd/api/main.go
 
 # Use a non-root user.
-USER scratchuser
+USER apiuser
 
 # CMD to run the executable.
 CMD ["./main"]
