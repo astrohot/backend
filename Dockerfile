@@ -1,5 +1,5 @@
 # Get the proper golang image to build the app.
-FROM golang:1.12-alpine as builder
+FROM golang:1.12-alpine
 
 # Add non-root user to be used in the second step.
 RUN adduser -D scratchuser
